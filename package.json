@@ -1,0 +1,15 @@
+{
+  "name": "discord-support-bot",
+  "version": "1.0.0",
+  "description": "Bot AI di supporto clienti per shop Discord, con Groq API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
