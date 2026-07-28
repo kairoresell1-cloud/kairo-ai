@@ -6,7 +6,7 @@
  */
 
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
-const { setupSupportAI } = require('./support-ai'); // <-- AGGIUNGI QUESTO
+const { setupSupportAI, commandsData } = require('./support-ai'); // <-- AGGIUNGI QUESTO
 
 const client = new Client({
   intents: [
@@ -17,8 +17,18 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-client.once('ready', () => {
+client.once('clientReady', async () => {
   console.log(`Bot online come ${client.user.tag}`);
+
+  // Registra /stop e /start su ogni server in cui è presente il bot
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      await guild.commands.set(commandsData);
+      console.log(`Comandi slash registrati su: ${guild.name}`);
+    } catch (err) {
+      console.error(`Errore registrando comandi su ${guild.name}:`, err);
+    }
+  }
 });
 
 setupSupportAI(client); // <-- AGGIUNGI QUESTO

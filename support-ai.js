@@ -13,10 +13,16 @@
  *   TICKET_CHANNEL_PREFIX -> prefisso dei nomi canale ticket (default: "ticket-")
  *   STAFF_ROLE_ID         -> ID del ruolo staff da pingare in escalation
  *
+ * COMANDI SLASH (solo staff):
+ *   /stop  -> ferma le risposte AI nel canale corrente
+ *   /start -> riattiva le risposte AI nel canale corrente
+ *
  * NOTA su Ticket King: se i tuoi ticket non finiscono in nessuna categoria,
  * il bot li riconosce dal NOME del canale (es. "ticket-0001"). Controlla come
  * si chiamano davvero i tuoi canali ticket e aggiorna TICKET_CHANNEL_PREFIX se serve.
  */
+
+const { SlashCommandBuilder } = require('discord.js');
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile'; // gratis su Groq, ottimo per l'italiano
@@ -106,6 +112,19 @@ Non usare ${ESCALATION_TAG} per domande semplici a cui sai rispondere.`;
 const conversationHistory = new Map();
 const MAX_HISTORY_MESSAGES = 10;
 
+// Canali dove lo staff ha fermato manualmente le risposte AI (con /stop)
+const pausedChannels = new Set();
+
+// Definizione dei comandi slash, da registrare in index.js all'avvio
+const commandsData = [
+  new SlashCommandBuilder()
+    .setName('stop')
+    .setDescription('Ferma le risposte automatiche AI in questo canale (solo staff)'),
+  new SlashCommandBuilder()
+    .setName('start')
+    .setDescription('Riattiva le risposte automatiche AI in questo canale (solo staff)'),
+].map((c) => c.toJSON());
+
 // ============================================================
 // 3) CHIAMATA ALL'API GROQ (formato compatibile OpenAI)
 // ============================================================
@@ -154,6 +173,9 @@ function setupSupportAI(client) {
     // Risponde solo nei canali ticket, riconosciuti dal nome (es. "ticket-0001")
     if (!message.channel.name?.startsWith(TICKET_CHANNEL_PREFIX)) return;
 
+    // Se lo staff ha fermato il bot in questo canale con /stop, non risponde
+    if (pausedChannels.has(message.channel.id)) return;
+
     try {
       await message.channel.sendTyping();
       const reply = await askAI(message.channel.id, message.content);
@@ -175,6 +197,27 @@ function setupSupportAI(client) {
       );
     }
   });
+
+  // Gestione comandi /stop e /start
+  client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+    if (!['stop', 'start'].includes(interaction.commandName)) return;
+
+    // Solo lo staff può usare questi comandi
+    if (STAFF_ROLE_ID && !interaction.member?.roles.cache.has(STAFF_ROLE_ID)) {
+      await interaction.reply({ content: 'Non hai il permesso per usare questo comando.', ephemeral: true });
+      return;
+    }
+
+    if (interaction.commandName === 'stop') {
+      pausedChannels.add(interaction.channel.id);
+      conversationHistory.delete(interaction.channel.id);
+      await interaction.reply('🔇 Risposte AI **fermate** in questo canale.');
+    } else {
+      pausedChannels.delete(interaction.channel.id);
+      await interaction.reply('🔊 Risposte AI **riattivate** in questo canale.');
+    }
+  });
 }
 
-module.exports = { setupSupportAI };
+module.exports = { setupSupportAI, commandsData };
